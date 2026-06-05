@@ -1,0 +1,3 @@
+#include "postquantiquecoin/wallet/WalletRecovery.h"
+#include "postquantiquecoin/crypto/Hashing.h"
+namespace pqc { WalletRecoveryFile WalletRecovery::Create(PQCryptoProvider& provider,const std::vector<uint8_t>& dek){ auto kp=provider.GenerateKemKeyPair(); WalletRecoveryFile f; f.kemPublicKey=kp.publicKey; f.kemPrivateKey=kp.privateKey; auto enc=provider.Encapsulate(kp.publicKey); f.wrappedDek=Hashing::Kmac256(enc.sharedSecret,dek,"PQC_WALLET_RECOVERY_WRAP_V1",dek.size()); return f;} bool WalletRecovery::Test(PQCryptoProvider& provider,const WalletRecoveryFile& f){ auto enc=provider.Encapsulate(f.kemPublicKey); auto dec=provider.Decapsulate(f.kemPrivateKey,enc.ciphertext); return Hashing::SecureCompare(enc.sharedSecret,dec);} }
