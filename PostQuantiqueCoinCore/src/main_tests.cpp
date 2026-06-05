@@ -192,7 +192,10 @@ int main() {
         Check(w != nullptr && !w->ListAddresses().empty(), "Wallet generate address");
         pqc::Transaction unsignedTx; unsignedTx.inputs.push_back({std::string(64,'1'),0,{},kp.publicKey}); unsignedTx.outputs.push_back({1,address,"PQC_PUBKEY_HASH"});
         Check(w->SignTransaction(unsignedTx).IsErr(), "Wallet locked prevents signing");
-        Check(w->Unlock("pw").IsOk() && w->SignTransaction(unsignedTx).IsOk(), "Wallet unlock allows signing");
+        Check(w->Unlock("pw").IsOk() && w->SignTransaction(unsignedTx).IsErr(), "Wallet rejects transaction without matching key");
+        auto walletPubs = w->ExportPublicKeys();
+        pqc::Transaction ownedTx; ownedTx.inputs.push_back({std::string(64,'2'),0,{},walletPubs.empty()?std::vector<uint8_t>{}:walletPubs.front()}); ownedTx.inputs[0].signatureAlgorithm = provider->GetSigningAlgorithmInfo().name; ownedTx.outputs.push_back({1,w->ListAddresses().front(),"PQC_PUBKEY_HASH"});
+        Check(!walletPubs.empty() && w->SignTransaction(ownedTx).IsOk(), "Wallet unlock allows owned key signing");
         Check(w->GetBalance(bc.Value()) == 0, "Wallet balance through blockchain");
         Check(w->Backup(walletDir/"alice.bak").IsOk(), "Wallet backup");
 
