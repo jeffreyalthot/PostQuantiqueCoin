@@ -2,11 +2,7 @@
 #include <cstdint>
 #include <string>
 namespace pqc {
-enum class PowAlgorithm {
-    DoubleSha256Legacy = 0,
-    PQC_SHA3_SHAKE_V1 = 1,
-    PQC_MEMORY_HARD_V2 = 2
-};
+enum class PowAlgorithm { DoubleSha256Legacy = 0, PQC_SHA3_SHAKE_V1 = 1, PQC_MEMORY_HARD_V2 = 2 };
 struct ChainParams {
     std::string name;
     std::string ticker;
@@ -28,8 +24,14 @@ struct ChainParams {
     std::string defaultSignatureAlgorithm;
     std::string defaultKemAlgorithm;
     std::string expectedGenesisHash;
+    uint8_t networkId{1};
+    std::string networkName{"mainnet"};
+    bool allowDevCrypto{false};
+    bool allowLegacyPow{false};
+    bool requireLibOqs{true};
     static ChainParams Mainnet();
     static ChainParams Devnet();
+    static ChainParams Regtest();
     uint64_t GetBlockSubsidy(uint64_t height, uint64_t alreadyMinted) const;
 };
 }

@@ -36,6 +36,7 @@ file(GLOB_RECURSE PQC_LIBRARY_SOURCES CONFIGURE_DEPENDS
   src/wallet/*.cpp
   src/mining/*.cpp
   src/cli/*.cpp
+  src/p2p/*.cpp
 )
 add_library(pqc_core STATIC ${PQC_LIBRARY_SOURCES})
 target_include_directories(pqc_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)

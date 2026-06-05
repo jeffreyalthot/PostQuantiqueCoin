@@ -1,4 +1,5 @@
 #include "postquantiquecoin/mining/PQPow.h"
+#include "postquantiquecoin/mining/PQMemoryPow.h"
 #include "postquantiquecoin/core/Hex.h"
 #include "postquantiquecoin/crypto/Hashing.h"
 #include <algorithm>
@@ -40,7 +41,11 @@ std::array<uint8_t, 32> PQPow::ComputePqcSha3ShakeV1(const BlockHeader& header) 
 }
 
 std::array<uint8_t, 32> PQPow::ComputePowHash(const BlockHeader& header, const ChainParams& params) {
-    if (params.powAlgorithm == PowAlgorithm::DoubleSha256Legacy) return Hashing::DoubleSha256(header.Serialize());
+    switch (params.powAlgorithm) {
+        case PowAlgorithm::DoubleSha256Legacy: return Hashing::DoubleSha256(header.Serialize());
+        case PowAlgorithm::PQC_SHA3_SHAKE_V1: return ComputePqcSha3ShakeV1(header);
+        case PowAlgorithm::PQC_MEMORY_HARD_V2: return PQMemoryPow::ComputeMemoryHardV2(header, params);
+    }
     return ComputePqcSha3ShakeV1(header);
 }
 

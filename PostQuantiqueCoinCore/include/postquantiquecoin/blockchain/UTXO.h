@@ -1,5 +1,6 @@
 #pragma once
 #include "postquantiquecoin/core/Result.h"
+#include <array>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -13,6 +14,8 @@ struct UTXO {
     uint64_t height{0};
     bool coinbase{false};
     uint64_t createdTimestamp{0};
+    std::string requiredSignatureAlgorithm{"ML-DSA-65"};
+    std::array<uint8_t,32> publicKeyHash{};
     std::string OutpointKey() const;
     std::vector<uint8_t> Serialize() const;
     static Result<UTXO> Deserialize(const std::vector<uint8_t>& data);
