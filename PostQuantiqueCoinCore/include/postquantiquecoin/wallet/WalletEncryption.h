@@ -13,6 +13,10 @@ public:
     static Result<std::vector<uint8_t>> DecryptPayload(const WalletEncryptedBlob& blob,
                                                        const std::string& password,
                                                        uint32_t iterations = 600000);
+    static Result<WalletEncryptedBlob> RotatePassword(const WalletEncryptedBlob& blob,
+                                                      const std::string& oldPassword,
+                                                      const std::string& newPassword,
+                                                      uint32_t iterations = 600000);
     static Result<std::vector<uint8_t>> DerivePasswordKey(const std::string& password,
                                                           const std::vector<uint8_t>& salt,
                                                           uint32_t iterations,

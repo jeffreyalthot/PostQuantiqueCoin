@@ -120,8 +120,8 @@ Result<void> Wallet::EncryptAndStorePlaintext(const std::string& password) {
     if (walletSalt_.empty()) walletSalt_ = SecureRandom::Bytes(32);
     auto plaintext = SerializePlaintext();
     auto blob = WalletEncryption::EncryptPayload(plaintext, password, kdfIterations_, walletSalt_);
-    if (blob.ciphertext.empty() && !plaintext.empty()) return Result<void>::Err("wallet encryption failed");
-    walletSalt_ = blob.salt;
+    if (blob.encryptedPayload.empty() && !plaintext.empty()) return Result<void>::Err("wallet encryption failed");
+    walletSalt_ = blob.saltPassword;
     kdfIterations_ = blob.kdfIterations;
     return storage_.SaveEncryptedWallet(WalletDatFormat::Serialize(blob));
 }
@@ -132,7 +132,7 @@ Result<void> Wallet::Load() {
     if (b.IsErr()) return Result<void>::Err(b.Error());
     auto blob = WalletDatFormat::Deserialize(b.Value());
     if (blob.IsErr()) return Result<void>::Err(blob.Error());
-    walletSalt_ = blob.Value().salt;
+    walletSalt_ = blob.Value().saltPassword;
     kdfIterations_ = blob.Value().kdfIterations;
     locked_ = true;
     masterKey_.Wipe();
@@ -158,9 +158,9 @@ Result<void> Wallet::Unlock(const std::string& password, uint64_t timeoutSeconds
     if (pt.IsErr()) return Result<void>::Err(pt.Error());
     auto dp = DeserializePlaintext(pt.Value());
     if (dp.IsErr()) return dp;
-    auto master = DeriveWalletMasterKey(password, blob.Value().salt, blob.Value().kdfIterations);
+    auto master = DeriveWalletMasterKey(password, blob.Value().saltPassword, blob.Value().kdfIterations);
     if (master.IsErr()) return Result<void>::Err(master.Error());
-    walletSalt_ = blob.Value().salt;
+    walletSalt_ = blob.Value().saltPassword;
     kdfIterations_ = blob.Value().kdfIterations;
     masterKey_ = SecureBuffer(master.Value());
     unlockPassword_ = password;
