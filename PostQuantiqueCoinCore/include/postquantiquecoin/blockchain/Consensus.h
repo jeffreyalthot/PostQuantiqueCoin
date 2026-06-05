@@ -1,0 +1,6 @@
+#pragma once
+#include "postquantiquecoin/blockchain/Block.h"
+#include "postquantiquecoin/blockchain/ChainParams.h"
+#include "postquantiquecoin/core/Result.h"
+#include <cstdint>
+namespace pqc { class Consensus { public: static Result<void> ValidateHeader(const BlockHeader& header, const ChainParams& params); static bool ValidateProofOfWork(const BlockHeader& header); static Result<void> ValidateTimestamp(uint64_t timestamp); static Result<void> ValidateMerkleRoot(const Block& block); static Result<void> ValidateCoinbase(const Block& block, const ChainParams& params, uint64_t alreadyMinted, uint64_t fees); static Result<void> ValidateSubsidy(uint64_t coinbaseAtoms, const ChainParams& params, uint64_t height, uint64_t alreadyMinted, uint64_t fees); static Result<void> ValidateTransactions(const Block& block, PQCryptoProvider* provider); static Result<void> ValidateBlock(const Block& block, const ChainParams& params, uint64_t alreadyMinted, uint64_t fees, PQCryptoProvider* provider); static bool HashMeetsCompactTarget(const std::string& hashHex, uint32_t bits); }; }

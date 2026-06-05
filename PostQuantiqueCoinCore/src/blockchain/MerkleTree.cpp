@@ -1,0 +1,4 @@
+#include "postquantiquecoin/blockchain/MerkleTree.h"
+#include "postquantiquecoin/core/Hex.h"
+#include "postquantiquecoin/crypto/Hashing.h"
+namespace pqc { std::string MerkleTree::ComputeRoot(const std::vector<Transaction>& txs){ std::vector<std::string> h; for(const auto& tx:txs) h.push_back(tx.txid.empty()?tx.ComputeTxId():tx.txid); return ComputeRootFromHashes(h); } std::string MerkleTree::ComputeRootFromHashes(std::vector<std::string> hashes){ if(hashes.empty()) return std::string(64,'0'); while(hashes.size()>1){ if(hashes.size()%2) hashes.push_back(hashes.back()); std::vector<std::string> next; for(size_t i=0;i<hashes.size();i+=2){ auto a=Hex::Decode(hashes[i]).Value(); auto b=Hex::Decode(hashes[i+1]).Value(); a.insert(a.end(),b.begin(),b.end()); next.push_back(Hashing::Hash256Hex(a)); } hashes.swap(next); } return hashes.front(); } }
