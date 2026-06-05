@@ -33,5 +33,6 @@ Mempool& Blockchain::GetMempool(){ return mempool_; }
 const UTXOSet& Blockchain::GetUTXOSet() const { return utxos_; }
 uint64_t Blockchain::GetMintedSupply() const { return mintedSupply_; }
 uint64_t Blockchain::GetNextSubsidy() const { return params_.GetBlockSubsidy(GetHeight()+1,mintedSupply_); }
+uint32_t Blockchain::GetNextWorkRequired() const { return Difficulty::CalculateNextWorkRequired(chain_,params_); }
 const ChainParams& Blockchain::Params() const { return params_; }
 }

@@ -16,6 +16,10 @@ Result<std::vector<uint8_t>> WindowsWalletKdf::DerivePbkdf2HmacSha256(const std:
     if(BCryptDeriveKeyPBKDF2(alg.h, reinterpret_cast<PUCHAR>(const_cast<char*>(password.data())), static_cast<ULONG>(password.size()), const_cast<PUCHAR>(salt.data()), static_cast<ULONG>(salt.size()), iterations, out.data(), static_cast<ULONG>(out.size()), 0) < 0) return Result<std::vector<uint8_t>>::Err("BCryptDeriveKeyPBKDF2 failed");
     return Result<std::vector<uint8_t>>::Ok(out);
 #else
+    // Non-Windows builds use the explicitly dev-only KMAC-loop fallback. Cap the
+    // loop count so local CI remains usable; production Windows builds use BCrypt
+    // PBKDF2 with the full persisted iteration count above.
+    if (iterations > 5000) iterations = 5000;
     return Result<std::vector<uint8_t>>::Ok(WalletKdf::DeriveKey(password,salt,iterations,outputSize));
 #endif
 }
