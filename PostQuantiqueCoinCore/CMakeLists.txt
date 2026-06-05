@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(PostQuantiqueCoinCore VERSION 0.1.0 LANGUAGES CXX)
+project(PostQuantiqueCoinCore VERSION 0.2.0 LANGUAGES CXX)
 
 option(USE_LIBOQS "Enable Open Quantum Safe liboqs provider" ON)
 option(DEV_ONLY_ALLOW_INSECURE_CRYPTO "Allow insecure development fallback crypto" OFF)
@@ -28,7 +28,15 @@ else()
   add_compile_definitions(PQC_DEV_ONLY_ALLOW_INSECURE_CRYPTO=1)
 endif()
 
-file(GLOB_RECURSE PQC_LIBRARY_SOURCES CONFIGURE_DEPENDS src/core/*.cpp src/crypto/*.cpp src/blockchain/*.cpp)
+file(GLOB_RECURSE PQC_LIBRARY_SOURCES CONFIGURE_DEPENDS
+  src/core/*.cpp
+  src/crypto/*.cpp
+  src/blockchain/*.cpp
+  src/storage/*.cpp
+  src/wallet/*.cpp
+  src/mining/*.cpp
+  src/cli/*.cpp
+)
 add_library(pqc_core STATIC ${PQC_LIBRARY_SOURCES})
 target_include_directories(pqc_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 if(USE_LIBOQS)
@@ -41,6 +49,12 @@ endif()
 
 add_executable(pqc_tests src/main_tests.cpp)
 target_link_libraries(pqc_tests PRIVATE pqc_core)
+add_executable(pqc_node src/main_node.cpp)
+target_link_libraries(pqc_node PRIVATE pqc_core)
+add_executable(pqc_wallet src/main_wallet.cpp)
+target_link_libraries(pqc_wallet PRIVATE pqc_core)
+add_executable(pqc_miner src/main_miner.cpp)
+target_link_libraries(pqc_miner PRIVATE pqc_core)
 
 include(CTest)
 add_test(NAME pqc_tests COMMAND pqc_tests)

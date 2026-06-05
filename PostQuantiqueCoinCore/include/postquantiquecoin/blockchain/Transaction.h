@@ -23,8 +23,12 @@ public:
     static Result<Transaction> Deserialize(const std::vector<uint8_t>& data);
     std::vector<uint8_t> GetSigningDigest() const;
     std::string ComputeTxId() const;
+    uint64_t GetOutputSum() const;
+    std::vector<std::pair<std::string,uint32_t>> GetInputOutpoints() const;
+    size_t EstimatedSize() const;
     Result<void> ValidateBasic() const;
     void Sign(PQCryptoProvider& provider, const std::vector<uint8_t>& privateKey, const std::vector<uint8_t>& pubKey);
     bool VerifySignature(PQCryptoProvider& provider) const;
+    bool Verify(PQCryptoProvider& provider) const;
 };
 }
