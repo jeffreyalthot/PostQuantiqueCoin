@@ -9,6 +9,10 @@ public:
     PQKemKeyPair GenerateKemKeyPair() override;
     KemEncapsulation Encapsulate(const std::vector<uint8_t>& publicKey) override;
     std::vector<uint8_t> Decapsulate(const std::vector<uint8_t>& privateKey, const std::vector<uint8_t>& ciphertext) override;
+    PQAlgorithmInfo GetSigningAlgorithmInfo() const override;
+    PQAlgorithmInfo GetKemAlgorithmInfo() const override;
+    bool IsSigningAlgorithmAllowed(const std::string& algorithm) const override;
+    bool IsKemAlgorithmAllowed(const std::string& algorithm) const override;
     std::string ProviderName() const override;
 };
 }

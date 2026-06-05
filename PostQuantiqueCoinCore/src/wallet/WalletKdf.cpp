@@ -1,0 +1,3 @@
+#include "postquantiquecoin/wallet/WalletKdf.h"
+#include "postquantiquecoin/crypto/Hashing.h"
+namespace pqc { std::vector<uint8_t> WalletKdf::DeriveKey(const std::string& password,const std::vector<uint8_t>& salt,uint32_t iterations,size_t outputSize){ std::vector<uint8_t> key(password.begin(),password.end()); std::vector<uint8_t> msg=salt; if(iterations==0) iterations=1; for(uint32_t i=0;i<iterations;++i){ msg.push_back(static_cast<uint8_t>(i&0xff)); key=Hashing::Kmac256(key,msg,"PQC_WALLET_KDF_V1",32); msg.assign(salt.begin(),salt.end()); msg.insert(msg.end(),key.begin(),key.end()); } return Hashing::Kmac256(key,salt,"PQC_WALLET_KEY_EXPAND_V1",outputSize); } }

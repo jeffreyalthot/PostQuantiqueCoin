@@ -1,12 +1,16 @@
 #include "postquantiquecoin/blockchain/Blockchain.h"
 #include "postquantiquecoin/blockchain/ChainParams.h"
 #include "postquantiquecoin/blockchain/Consensus.h"
+#include "postquantiquecoin/blockchain/Difficulty.h"
 #include "postquantiquecoin/blockchain/Genesis.h"
 #include "postquantiquecoin/blockchain/Mempool.h"
 #include "postquantiquecoin/blockchain/MerkleTree.h"
 #include "postquantiquecoin/core/Amount.h"
 #include "postquantiquecoin/core/Hex.h"
 #include "postquantiquecoin/crypto/Address.h"
+#include "postquantiquecoin/crypto/PQCAddress.h"
+#include "postquantiquecoin/mining/PQPow.h"
+#include "postquantiquecoin/wallet/WalletEncryption.h"
 #include "postquantiquecoin/crypto/Hashing.h"
 #include "postquantiquecoin/crypto/PQCryptoProvider.h"
 #include "postquantiquecoin/mining/Miner.h"
@@ -16,6 +20,7 @@
 #include "postquantiquecoin/wallet/WalletManager.h"
 #include <cstdlib>
 #include <filesystem>
+#include <cctype>
 #include <iostream>
 #include <stdexcept>
 
@@ -45,13 +50,29 @@ int main() {
         Check(h1 == h2 && h1.size() == 64, "Hash deterministic");
 
         auto provider = pqc::CreateDefaultCryptoProvider();
+
+        auto sha3abc = pqc::Hashing::Sha3_256(std::vector<uint8_t>{'a','b','c'});
+        Check(pqc::Hex::Encode(std::vector<uint8_t>(sha3abc.begin(), sha3abc.end())) == "3a985da74fe225b2045c172d6bd390bd855f086e3e9d525b46bfe24511431532", "SHA3-256 known answer test");
+        auto shake = pqc::Hashing::Shake256(std::vector<uint8_t>{'a','b','c'}, 64);
+        Check(shake.size() == 64, "SHAKE256 variable output length");
         auto kp = provider->GenerateSigningKeyPair();
         auto address = pqc::Address::FromPublicKey(kp.publicKey);
         Check(pqc::Address::Validate(address), "Address generation/validation");
+        auto decodedAddr = pqc::PQCAddress::Decode(address);
+        Check(decodedAddr.IsOk(), "PQCAddress v2 decode");
+        auto tamperedAddress = address; tamperedAddress.back() = tamperedAddress.back() == 'A' ? 'B' : 'A';
+        Check(pqc::PQCAddress::Decode(tamperedAddress).IsErr(), "PQCAddress rejects bad checksum");
+        auto lowerAddress = address; lowerAddress[5] = static_cast<char>(std::tolower(static_cast<unsigned char>(lowerAddress[5])));
+        Check(pqc::PQCAddress::Decode(lowerAddress).IsErr(), "PQCAddress rejects lowercase ambiguity");
 
         std::vector<uint8_t> message{'P','Q','C'};
         auto sig = provider->Sign(kp.privateKey, message);
         Check(provider->Verify(kp.publicKey, message, sig), "PQ key generation/sign/verify");
+        auto signInfo = provider->GetSigningAlgorithmInfo();
+        auto kemInfo = provider->GetKemAlgorithmInfo();
+        Check(provider->IsSigningAlgorithmAllowed(signInfo.name), "Signing algorithm allow-list reports active algorithm");
+        Check(provider->IsKemAlgorithmAllowed(kemInfo.name), "KEM algorithm allow-list reports active algorithm");
+        Check(!provider->Verify(std::vector<uint8_t>{1,2,3}, std::vector<uint8_t>{4}, std::vector<uint8_t>{5}), "Provider rejects invalid public key/signature sizes");
         message.push_back('!');
         Check(!provider->Verify(kp.publicKey, message, sig), "Bad signature rejected");
 
@@ -72,7 +93,13 @@ int main() {
         auto params = pqc::ChainParams::Devnet();
         auto genesis = pqc::Genesis::BuildGenesisBlock(params);
         Check(pqc::Genesis::ValidateGenesisBlock(genesis, params), "Genesis block deterministic");
-        Check(pqc::Consensus::ValidateProofOfWork(genesis.header), "PoW validation");
+        auto powHash1 = pqc::PQPow::ComputePowHash(genesis.header, params);
+        auto powHash2 = pqc::PQPow::ComputePowHash(genesis.header, params);
+        Check(powHash1 == powHash2, "PQC-PoW-v1 deterministic");
+        auto changedHeader = genesis.header; ++changedHeader.nonce;
+        Check(pqc::PQPow::ComputePowHash(changedHeader, params) != powHash1, "PQC-PoW-v1 changes with nonce");
+        Check(pqc::Difficulty::CheckProofOfWorkHash(powHash1, genesis.header.bits), "PQC-PoW-v1 valid target accepted");
+        Check(pqc::Consensus::ValidateProofOfWork(genesis.header, params), "PoW validation");
 
         uint64_t minted = 0;
         bool supplyOk = true;
@@ -126,7 +153,7 @@ int main() {
         auto bc = pqc::Blockchain::OpenOrCreate(dataDir, params, provider.get());
         Check(bc.IsOk() && bc.Value().GetHeight()==0, "Blockchain auto-create genesis");
         Check(bc.Value().ValidateChain().IsOk(), "Blockchain validate full chain");
-        auto wrong = genesis; wrong.header.height=1; wrong.header.previousHash=std::string(64,'e'); wrong.header.merkleRoot=pqc::MerkleTree::ComputeRoot(wrong.transactions); wrong.header.nonce=0; while(!pqc::Consensus::ValidateProofOfWork(wrong.header)) ++wrong.header.nonce;
+        auto wrong = genesis; wrong.header.height=1; wrong.header.previousHash=std::string(64,'e'); wrong.header.merkleRoot=pqc::MerkleTree::ComputeRoot(wrong.transactions); wrong.header.nonce=0; while(!pqc::Consensus::ValidateProofOfWork(wrong.header, params)) ++wrong.header.nonce;
         Check(bc.Value().AddBlock(wrong).IsErr(), "Blockchain reject wrong previous hash");
         auto mineKey = provider->GenerateSigningKeyPair();
         auto mineAddr = pqc::Address::FromPublicKey(mineKey.publicKey);
@@ -135,7 +162,7 @@ int main() {
         Check(job.IsOk() && !job.Value().candidateBlock.transactions.empty(), "Mining build candidate block");
         auto badMerkle = job.Value().candidateBlock; badMerkle.header.merkleRoot=std::string(64,'f');
         Check(bc.Value().AddBlock(badMerkle).IsErr(), "Blockchain reject invalid merkle root");
-        auto excessive = job.Value().candidateBlock; excessive.transactions[0].outputs[0].amountAtoms += 1; excessive.transactions[0].txid = excessive.transactions[0].ComputeTxId(); excessive.header.merkleRoot=pqc::MerkleTree::ComputeRoot(excessive.transactions); excessive.header.nonce=0; while(!pqc::Consensus::ValidateProofOfWork(excessive.header)) ++excessive.header.nonce;
+        auto excessive = job.Value().candidateBlock; excessive.transactions[0].outputs[0].amountAtoms += 1; excessive.transactions[0].txid = excessive.transactions[0].ComputeTxId(); excessive.header.merkleRoot=pqc::MerkleTree::ComputeRoot(excessive.transactions); excessive.header.nonce=0; while(!pqc::Consensus::ValidateProofOfWork(excessive.header, params)) ++excessive.header.nonce;
         Check(bc.Value().AddBlock(excessive).IsErr(), "Blockchain reject excessive coinbase reward");
         auto mined = miner.MineNextBlock(mineAddr,1);
         Check(mined.IsOk() && bc.Value().GetHeight()==1, "Mining mine and submit easy dev block");
@@ -147,6 +174,16 @@ int main() {
         pqc::BlockIndex bi(storageDir/"index.dat"); bi.Add({"hash","prev",7,1,2,0,0,10,"7"}); bi.Save(); pqc::BlockIndex bi2(storageDir/"index.dat"); bi2.Load();
         Check(bi2.GetByHeight(7).has_value(), "Storage save/load block index");
         pqc::UtxoStorage us(storageDir/"utxo.dat"); Check(us.SaveSnapshot(mpSet).IsOk() && us.LoadSnapshot().IsOk(), "Storage save/load UTXO snapshot");
+
+
+        std::vector<uint8_t> walletPlain{'s','e','c','r','e','t'};
+        auto blob = pqc::WalletEncryption::EncryptPayload(walletPlain, "correct", 1000);
+        Check(blob.ciphertext != walletPlain, "wallet.dat encrypted payload unreadable");
+        Check(pqc::WalletEncryption::DecryptPayload(blob, "wrong", 1000).IsErr(), "wallet.dat wrong password rejected");
+        auto openedBlob = pqc::WalletEncryption::DecryptPayload(blob, "correct", 1000);
+        Check(openedBlob.IsOk() && openedBlob.Value() == walletPlain, "wallet.dat unlock correct password");
+        auto tamperedBlob = blob; tamperedBlob.ciphertext[0] ^= 1;
+        Check(pqc::WalletEncryption::DecryptPayload(tamperedBlob, "correct", 1000).IsErr(), "wallet.dat tampered ciphertext rejected");
 
         auto walletDir = TempDir("wallets");
         pqc::WalletManager wm(walletDir, provider.get());

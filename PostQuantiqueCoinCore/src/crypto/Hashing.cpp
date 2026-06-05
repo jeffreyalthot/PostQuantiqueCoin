@@ -1,4 +1,5 @@
 #include "postquantiquecoin/crypto/Hashing.h"
+#include "postquantiquecoin/crypto/Keccak.h"
 #include "postquantiquecoin/core/Hex.h"
 #include <array>
 #include <cstring>
@@ -16,7 +17,11 @@ std::array<uint8_t,32> Hashing::Sha256(const std::vector<uint8_t>& data){
     std::array<uint8_t,32> out{}; for(int i=0;i<8;i++){ out[i*4]=static_cast<uint8_t>(h[i]>>24); out[i*4+1]=static_cast<uint8_t>(h[i]>>16); out[i*4+2]=static_cast<uint8_t>(h[i]>>8); out[i*4+3]=static_cast<uint8_t>(h[i]); } return out;
 }
 std::array<uint8_t,32> Hashing::DoubleSha256(const std::vector<uint8_t>& data){ auto a=Sha256(data); return Sha256(std::vector<uint8_t>(a.begin(),a.end())); }
-std::array<uint8_t,32> Hashing::Sha3_256(const std::vector<uint8_t>& data){ std::vector<uint8_t> d{'S','H','A','3','-','2','5','6',':'}; d.insert(d.end(),data.begin(),data.end()); return Sha256(d); }
+std::array<uint8_t,32> Hashing::Sha3_256(const std::vector<uint8_t>& data){ return Keccak::Sha3_256(data); }
+std::array<uint8_t,64> Hashing::Sha3_512(const std::vector<uint8_t>& data){ return Keccak::Sha3_512(data); }
+std::vector<uint8_t> Hashing::Shake128(const std::vector<uint8_t>& data, size_t outputSize){ return Keccak::Shake128(data, outputSize); }
+std::vector<uint8_t> Hashing::Shake256(const std::vector<uint8_t>& data, size_t outputSize){ return Keccak::Shake256(data, outputSize); }
+std::vector<uint8_t> Hashing::Kmac256(const std::vector<uint8_t>& key, const std::vector<uint8_t>& message, const std::string& customization, size_t outputSize){ return Keccak::Kmac256(key, message, customization, outputSize); }
 std::string Hashing::Hash256Hex(const std::vector<uint8_t>& data){ auto h=DoubleSha256(data); return Hex::Encode(std::vector<uint8_t>(h.begin(),h.end())); }
 std::string Hashing::Sha3_256Hex(const std::vector<uint8_t>& data){ auto h=Sha3_256(data); return Hex::Encode(std::vector<uint8_t>(h.begin(),h.end())); }
 std::vector<uint8_t> Hashing::HmacSha256(const std::vector<uint8_t>& key, const std::vector<uint8_t>& message){ std::vector<uint8_t> k=key; if(k.size()>64){ auto hk=Sha256(k); k.assign(hk.begin(),hk.end()); } k.resize(64,0); std::vector<uint8_t> o(64),i(64); for(size_t n=0;n<64;n++){ o[n]=k[n]^0x5c; i[n]=k[n]^0x36; } i.insert(i.end(),message.begin(),message.end()); auto ih=Sha256(i); o.insert(o.end(),ih.begin(),ih.end()); auto oh=Sha256(o); return {oh.begin(),oh.end()}; }
