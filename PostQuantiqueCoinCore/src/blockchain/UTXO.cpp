@@ -1,0 +1,11 @@
+#include "postquantiquecoin/blockchain/UTXO.h"
+#include "postquantiquecoin/core/Constants.h"
+#include "postquantiquecoin/core/Serialization.h"
+#include "postquantiquecoin/crypto/Address.h"
+namespace pqc {
+std::string UTXO::OutpointKey() const { return txid + ":" + std::to_string(outputIndex); }
+std::vector<uint8_t> UTXO::Serialize() const { Serializer s; s.U32(1); s.String(txid); s.U32(outputIndex); s.U64(amountAtoms); s.String(address); s.String(lockingScriptType); s.U64(height); s.U32(coinbase?1U:0U); s.U64(createdTimestamp); return s.Data(); }
+Result<UTXO> UTXO::Deserialize(const std::vector<uint8_t>& data){ Deserializer d(data); UTXO u; auto v=d.U32(); if(v.IsErr()) return Result<UTXO>::Err(v.Error()); if(v.Value()!=1) return Result<UTXO>::Err("bad utxo version"); auto tx=d.String(); if(tx.IsErr()) return Result<UTXO>::Err(tx.Error()); u.txid=tx.Value(); auto idx=d.U32(); if(idx.IsErr()) return Result<UTXO>::Err(idx.Error()); u.outputIndex=idx.Value(); auto amt=d.U64(); if(amt.IsErr()) return Result<UTXO>::Err(amt.Error()); u.amountAtoms=amt.Value(); auto a=d.String(); if(a.IsErr()) return Result<UTXO>::Err(a.Error()); u.address=a.Value(); auto l=d.String(); if(l.IsErr()) return Result<UTXO>::Err(l.Error()); u.lockingScriptType=l.Value(); auto h=d.U64(); if(h.IsErr()) return Result<UTXO>::Err(h.Error()); u.height=h.Value(); auto c=d.U32(); if(c.IsErr()) return Result<UTXO>::Err(c.Error()); u.coinbase=c.Value()!=0; auto ts=d.U64(); if(ts.IsErr()) return Result<UTXO>::Err(ts.Error()); u.createdTimestamp=ts.Value(); if(!d.End()) return Result<UTXO>::Err("trailing utxo bytes"); auto ok=u.ValidateBasic(); if(ok.IsErr()) return Result<UTXO>::Err(ok.Error()); return Result<UTXO>::Ok(u); }
+bool UTXO::IsSpendable(uint64_t currentHeight,uint64_t maturity) const { return !coinbase || currentHeight>=height + maturity; }
+Result<void> UTXO::ValidateBasic() const { if(txid.size()!=64) return Result<void>::Err("bad utxo txid"); if(amountAtoms==0 || amountAtoms>constants::MAX_SUPPLY_ATOMS) return Result<void>::Err("bad utxo amount"); if(!Address::Validate(address)) return Result<void>::Err("bad utxo address"); if(lockingScriptType!="PQC_PUBKEY_HASH") return Result<void>::Err("bad locking script"); return Result<void>::Ok(); }
+}

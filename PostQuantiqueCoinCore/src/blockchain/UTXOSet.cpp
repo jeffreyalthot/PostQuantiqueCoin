@@ -1,0 +1,21 @@
+#include "postquantiquecoin/blockchain/UTXOSet.h"
+#include "postquantiquecoin/crypto/Address.h"
+#include <set>
+namespace pqc {
+std::string UTXOSet::Key(const std::string& txid,uint32_t outputIndex){ return txid+":"+std::to_string(outputIndex); }
+Result<void> UTXOSet::AddUTXO(const UTXO& u){ auto v=u.ValidateBasic(); if(v.IsErr()) return v; auto k=u.OutpointKey(); if(entries_.count(k)) return Result<void>::Err("utxo already exists"); entries_[k]=u; return Result<void>::Ok(); }
+Result<void> UTXOSet::RemoveUTXO(const std::string& txid,uint32_t idx){ auto it=entries_.find(Key(txid,idx)); if(it==entries_.end()) return Result<void>::Err("missing utxo"); entries_.erase(it); return Result<void>::Ok(); }
+bool UTXOSet::HasUTXO(const std::string& txid,uint32_t idx) const { return entries_.count(Key(txid,idx))!=0; }
+std::optional<UTXO> UTXOSet::GetUTXO(const std::string& txid,uint32_t idx) const { auto it=entries_.find(Key(txid,idx)); if(it==entries_.end()) return std::nullopt; return it->second; }
+uint64_t UTXOSet::GetBalance(const std::string& address,uint64_t h,uint64_t m) const { uint64_t sum=0; for(const auto& kv:entries_) if(kv.second.address==address && kv.second.IsSpendable(h,m) && UINT64_MAX-sum>=kv.second.amountAtoms) sum+=kv.second.amountAtoms; return sum; }
+std::vector<UTXO> UTXOSet::GetSpendableUTXOs(const std::string& address,uint64_t h,uint64_t m) const { std::vector<UTXO> v; for(const auto& kv:entries_) if(kv.second.address==address && kv.second.IsSpendable(h,m)) v.push_back(kv.second); return v; }
+Result<std::vector<UTXO>> UTXOSet::ApplyTransaction(const Transaction& tx,uint64_t height,bool isCoinbase,uint64_t currentHeight,uint64_t maturity){ auto b=tx.ValidateBasic(); if(b.IsErr() && !isCoinbase) return Result<std::vector<UTXO>>::Err(b.Error()); std::vector<UTXO> spent; std::set<std::string> seen; uint64_t inSum=0; if(!isCoinbase){ for(const auto& in:tx.inputs){ auto k=Key(in.previousTxid,in.outputIndex); if(!seen.insert(k).second) return Result<std::vector<UTXO>>::Err("transaction double spend"); auto u=GetUTXO(in.previousTxid,in.outputIndex); if(!u) return Result<std::vector<UTXO>>::Err("input utxo missing"); if(!u->IsSpendable(currentHeight,maturity)) return Result<std::vector<UTXO>>::Err("coinbase immature"); if(UINT64_MAX-inSum<u->amountAtoms) return Result<std::vector<UTXO>>::Err("input overflow"); inSum+=u->amountAtoms; spent.push_back(*u); } if(inSum<tx.GetOutputSum()) return Result<std::vector<UTXO>>::Err("outputs exceed inputs"); for(const auto& u:spent) entries_.erase(u.OutpointKey()); }
+    std::string id=tx.txid.empty()?tx.ComputeTxId():tx.txid; for(uint32_t i=0;i<tx.outputs.size();++i){ const auto& o=tx.outputs[i]; if(o.amountAtoms==0 || !Address::Validate(o.address)) return Result<std::vector<UTXO>>::Err("invalid tx output"); UTXO u{id,i,o.amountAtoms,o.address,o.lockingScriptType,height,isCoinbase,tx.timestamp}; auto ar=AddUTXO(u); if(ar.IsErr()) return Result<std::vector<UTXO>>::Err(ar.Error()); } return Result<std::vector<UTXO>>::Ok(spent); }
+Result<void> UTXOSet::RevertTransaction(const Transaction& tx,const std::vector<UTXO>& spent){ std::string id=tx.txid.empty()?tx.ComputeTxId():tx.txid; for(uint32_t i=0;i<tx.outputs.size();++i) entries_.erase(Key(id,i)); for(const auto& u:spent){ auto r=AddUTXO(u); if(r.IsErr()) return r; } return Result<void>::Ok(); }
+Result<void> UTXOSet::ApplyBlock(const Block& block,uint64_t height,uint64_t maturity){ UTXOSet copy=*this; for(size_t i=0;i<block.transactions.size();++i){ auto r=copy.ApplyTransaction(block.transactions[i],height,i==0,height,maturity); if(r.IsErr()) return Result<void>::Err(r.Error()); } *this=std::move(copy); return Result<void>::Ok(); }
+std::vector<UTXO> UTXOSet::Snapshot() const { std::vector<UTXO> v; for(const auto& kv:entries_) v.push_back(kv.second); return v; }
+Result<void> UTXOSet::LoadSnapshot(const std::vector<UTXO>& snap){ std::map<std::string,UTXO> n; for(const auto& u:snap){ auto r=u.ValidateBasic(); if(r.IsErr()) return r; n[u.OutpointKey()]=u; } entries_=std::move(n); return Result<void>::Ok(); }
+Result<void> UTXOSet::LoadSnapshot(){ entries_.clear(); return Result<void>::Ok(); }
+void UTXOSet::Clear(){ entries_.clear(); }
+size_t UTXOSet::Size() const { return entries_.size(); }
+}
