@@ -7,7 +7,7 @@
 namespace pqc {
 struct WalletDatHeader {
     std::string magic{"PQCWALLET"};
-    uint32_t formatVersion{2};
+    uint32_t formatVersion{3};
     uint8_t networkId{1};
     uint8_t kdfAlgorithm{1};
     uint8_t aeadAlgorithm{1};
@@ -19,7 +19,7 @@ struct WalletDatHeader {
     std::array<uint8_t,32> checksum{};
 };
 struct WalletEncryptedBlob {
-    uint32_t version{2};
+    uint32_t version{3};
     uint8_t networkId{1};
     uint8_t kdfAlgorithm{1};
     uint8_t aeadAlgorithm{1};
@@ -28,14 +28,20 @@ struct WalletEncryptedBlob {
     std::string aeadName{"AES-256-GCM"};
     std::string pqKemName{"ML-KEM-768"};
     uint32_t kdfIterations{600000};
-    std::vector<uint8_t> salt;
-    std::vector<uint8_t> nonce;
-    std::vector<uint8_t> ciphertext;
-    std::vector<uint8_t> authTag;
-    std::vector<uint8_t> pqKemPublicKey;
-    std::vector<uint8_t> pqKemCiphertext;
+
+    std::vector<uint8_t> encryptedPayload;
     std::vector<uint8_t> encryptedDekByPassword;
     std::vector<uint8_t> encryptedDekByKem;
+    std::vector<uint8_t> pqKemCiphertext;
+    std::vector<uint8_t> saltPassword;
+    std::vector<uint8_t> noncePayload;
+    std::vector<uint8_t> nonceDekPassword;
+    std::vector<uint8_t> nonceDekKem;
+    std::vector<uint8_t> tagPayload;
+    std::vector<uint8_t> tagDekPassword;
+    std::vector<uint8_t> tagDekKem;
+    std::array<uint8_t,32> walletFingerprint{};
+    std::array<uint8_t,32> kemPublicKeyFingerprint{};
     std::array<uint8_t,32> checksum{};
 };
 class WalletDatFormat {

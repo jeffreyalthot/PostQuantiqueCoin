@@ -18,6 +18,7 @@
 #include "postquantiquecoin/storage/FileStorage.h"
 #include "postquantiquecoin/storage/UtxoStorage.h"
 #include "postquantiquecoin/wallet/WalletManager.h"
+#include "postquantiquecoin/wallet/WalletRecovery.h"
 #include <cstdlib>
 #include <filesystem>
 #include <cctype>
@@ -178,12 +179,26 @@ int main() {
 
         std::vector<uint8_t> walletPlain{'s','e','c','r','e','t'};
         auto blob = pqc::WalletEncryption::EncryptPayload(walletPlain, "correct", 1000);
-        Check(blob.ciphertext != walletPlain, "wallet.dat encrypted payload unreadable");
+        Check(blob.encryptedPayload != walletPlain, "wallet.dat encrypted payload unreadable");
         Check(pqc::WalletEncryption::DecryptPayload(blob, "wrong", 1000).IsErr(), "wallet.dat wrong password rejected");
         auto openedBlob = pqc::WalletEncryption::DecryptPayload(blob, "correct", 1000);
         Check(openedBlob.IsOk() && openedBlob.Value() == walletPlain, "wallet.dat unlock correct password");
-        auto tamperedBlob = blob; tamperedBlob.ciphertext[0] ^= 1;
+        auto tamperedBlob = blob; tamperedBlob.encryptedPayload[0] ^= 1;
         Check(pqc::WalletEncryption::DecryptPayload(tamperedBlob, "correct", 1000).IsErr(), "wallet.dat tampered ciphertext rejected");
+        auto rotatedBlob = pqc::WalletEncryption::RotatePassword(blob, "correct", "new-correct", 1000);
+        Check(rotatedBlob.IsOk() && rotatedBlob.Value().encryptedPayload == blob.encryptedPayload && pqc::WalletEncryption::DecryptPayload(rotatedBlob.Value(), "new-correct", 1000).IsOk(), "wallet password rotation preserves encrypted payload");
+
+        std::vector<uint8_t> fp(blob.walletFingerprint.begin(), blob.walletFingerprint.end());
+        auto recovery = pqc::WalletRecovery::Create(*provider, fp, "recovery-pw", 1, 1000);
+        auto publicRecoveryBytes = recovery.publicFile.Serialize();
+        auto secretRecoveryBytes = recovery.secretFile.Serialize();
+        Check(std::search(publicRecoveryBytes.begin(), publicRecoveryBytes.end(), recovery.secretFile.encryptedKemPrivateKey.begin(), recovery.secretFile.encryptedKemPrivateKey.end()) == publicRecoveryBytes.end(), "recovery public file excludes private KEM material");
+        Check(!recovery.secretFile.encryptedKemPrivateKey.empty() && pqc::WalletRecovery::DecryptKemPrivateKey(recovery.secretFile, "bad", 1000).IsErr(), "recovery secret file encrypted and wrong password rejected");
+        auto parsedPublic = pqc::WalletRecoveryPublicFile::Deserialize(publicRecoveryBytes);
+        auto parsedSecret = pqc::WalletRecoverySecretFile::Deserialize(secretRecoveryBytes);
+        Check(parsedPublic.IsOk() && parsedSecret.IsOk() && pqc::WalletRecovery::Test(*provider, parsedPublic.Value(), parsedSecret.Value(), "recovery-pw", 1000), "recovery split files deserialize and ML-KEM test succeeds");
+        auto tamperedSecret = recovery.secretFile; tamperedSecret.tag[0] ^= 1;
+        Check(pqc::WalletRecovery::DecryptKemPrivateKey(tamperedSecret, "recovery-pw", 1000).IsErr(), "recovery tampered tag rejected");
 
         auto walletDir = TempDir("wallets");
         pqc::WalletManager wm(walletDir, provider.get());

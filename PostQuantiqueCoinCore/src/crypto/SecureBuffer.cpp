@@ -22,6 +22,8 @@ void SecureWipe(uint8_t* p, size_t n) {
 
 SecureBuffer::SecureBuffer(size_t size) : bytes_(size) { TryLock(); }
 SecureBuffer::SecureBuffer(const std::vector<uint8_t>& data) : bytes_(data) { TryLock(); }
+SecureBuffer::SecureBuffer(std::vector<uint8_t>&& data, bool) : bytes_(std::move(data)) { TryLock(); }
+SecureBuffer SecureBuffer::FromVectorMove(std::vector<uint8_t>&& data) { return SecureBuffer(std::move(data), true); }
 SecureBuffer::SecureBuffer(SecureBuffer&& other) noexcept : bytes_(std::move(other.bytes_)), locked_(false) { other.locked_ = false; TryLock(); }
 SecureBuffer& SecureBuffer::operator=(SecureBuffer&& other) noexcept {
     if (this != &other) {
@@ -57,5 +59,7 @@ uint8_t* SecureBuffer::Data() { return bytes_.data(); }
 const uint8_t* SecureBuffer::Data() const { return bytes_.data(); }
 size_t SecureBuffer::Size() const { return bytes_.size(); }
 bool SecureBuffer::Empty() const { return bytes_.empty(); }
+SecureVectorView SecureBuffer::View() const { return {bytes_.data(), bytes_.size()}; }
 std::vector<uint8_t> SecureBuffer::ToVectorCopy() const { return bytes_; }
+std::vector<uint8_t> SecureBuffer::CopyToTemporary() const { return ToVectorCopy(); }
 }
