@@ -30,6 +30,7 @@ struct ChainParams {
     bool allowLegacyPow{false};
     bool requireLibOqs{true};
     static ChainParams Mainnet();
+    static ChainParams Testnet();
     static ChainParams Devnet();
     static ChainParams Regtest();
     uint64_t GetBlockSubsidy(uint64_t height, uint64_t alreadyMinted) const;
