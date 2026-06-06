@@ -4,6 +4,7 @@
 
 namespace pqc::constants {
 inline constexpr std::string_view PROJECT_NAME = "PostQuantiqueCoin";
+inline constexpr std::string_view PROJECT_VERSION = "0.2.0";
 inline constexpr std::string_view COIN_SYMBOL = "PQC";
 inline constexpr uint8_t COIN_DECIMALS = 8;
 inline constexpr uint64_t COIN_ATOM = 100000000ULL;
