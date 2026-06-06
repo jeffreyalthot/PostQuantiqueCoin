@@ -31,6 +31,7 @@ struct ChainParams {
     bool requireLibOqs{true};
     static ChainParams Mainnet();
     static ChainParams Devnet();
+    static ChainParams Testnet();
     static ChainParams Regtest();
     uint64_t GetBlockSubsidy(uint64_t height, uint64_t alreadyMinted) const;
 };

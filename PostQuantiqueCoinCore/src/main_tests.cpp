@@ -7,9 +7,12 @@
 #include "postquantiquecoin/blockchain/MerkleTree.h"
 #include "postquantiquecoin/core/Amount.h"
 #include "postquantiquecoin/core/Hex.h"
+#include "postquantiquecoin/core/Config.h"
 #include "postquantiquecoin/crypto/Address.h"
 #include "postquantiquecoin/crypto/PQCAddress.h"
 #include "postquantiquecoin/mining/PQPow.h"
+#include "postquantiquecoin/p2p/P2PMessage.h"
+#include "postquantiquecoin/p2p/PeerManager.h"
 #include "postquantiquecoin/wallet/WalletEncryption.h"
 #include "postquantiquecoin/crypto/Hashing.h"
 #include "postquantiquecoin/crypto/PQCryptoProvider.h"
@@ -18,6 +21,7 @@
 #include "postquantiquecoin/storage/FileStorage.h"
 #include "postquantiquecoin/storage/UtxoStorage.h"
 #include "postquantiquecoin/wallet/WalletManager.h"
+#include <chrono>
 #include <cstdlib>
 #include <filesystem>
 #include <cctype>
@@ -175,6 +179,19 @@ int main() {
         Check(bi2.GetByHeight(7).has_value(), "Storage save/load block index");
         pqc::UtxoStorage us(storageDir/"utxo.dat"); Check(us.SaveSnapshot(mpSet).IsOk() && us.LoadSnapshot().IsOk(), "Storage save/load UTXO snapshot");
 
+        pqc::NodeConfig cfg; cfg.network = "regtest"; cfg.datadir = TempDir("config"); cfg.maxpeers = 8;
+        auto cfgPath = cfg.datadir / "postquantiquecoin.conf";
+        Check(pqc::Config::Save(cfgPath, cfg).IsOk() && pqc::Config::Load(cfgPath).IsOk(), "Config save/load versioned file");
+        cfg.network = "mainnet"; cfg.allow_dev_crypto = true;
+        Check(pqc::Config::Validate(cfg).IsErr(), "Config rejects dev crypto on mainnet");
+
+        pqc::p2p::P2PMessage ping; ping.networkId = params.networkId; ping.command = "ping"; ping.payload = std::vector<uint8_t>{1,2,3};
+        auto pingBytes = ping.Serialize();
+        auto pingDecoded = pqc::p2p::P2PMessage::Deserialize(pingBytes, params.networkId);
+        Check(pingDecoded.IsOk() && pingDecoded.Value().command == "ping", "P2P message serialize/deserialize");
+        pqc::p2p::PeerManager peerManager(2);
+        Check(peerManager.AddPeer("127.0.0.1", 29444).IsOk() && peerManager.ListPeers().size() == 1, "PeerManager add/list peer");
+        Check(peerManager.Ban("127.0.0.1:29444", std::chrono::seconds(1)).IsOk() && peerManager.GetPeer("127.0.0.1:29444")->IsBanned(), "PeerManager ban peer");
 
         std::vector<uint8_t> walletPlain{'s','e','c','r','e','t'};
         auto blob = pqc::WalletEncryption::EncryptPayload(walletPlain, "correct", 1000);
@@ -187,12 +204,12 @@ int main() {
 
         auto walletDir = TempDir("wallets");
         pqc::WalletManager wm(walletDir, provider.get());
-        Check(wm.CreateWallet("alice","pw").IsOk(), "Wallet create");
+        Check(wm.CreateWallet("alice","correct horse battery staple").IsOk(), "Wallet create");
         auto* w = wm.GetWallet("alice");
         Check(w != nullptr && !w->ListAddresses().empty(), "Wallet generate address");
         pqc::Transaction unsignedTx; unsignedTx.inputs.push_back({std::string(64,'1'),0,{},kp.publicKey}); unsignedTx.outputs.push_back({1,address,"PQC_PUBKEY_HASH"});
         Check(w->SignTransaction(unsignedTx).IsErr(), "Wallet locked prevents signing");
-        Check(w->Unlock("pw").IsOk() && w->SignTransaction(unsignedTx).IsErr(), "Wallet rejects transaction without matching key");
+        Check(w->Unlock("correct horse battery staple").IsOk() && w->SignTransaction(unsignedTx).IsErr(), "Wallet rejects transaction without matching key");
         auto walletPubs = w->ExportPublicKeys();
         pqc::Transaction ownedTx; ownedTx.inputs.push_back({std::string(64,'2'),0,{},walletPubs.empty()?std::vector<uint8_t>{}:walletPubs.front()}); ownedTx.inputs[0].signatureAlgorithm = provider->GetSigningAlgorithmInfo().name; ownedTx.outputs.push_back({1,w->ListAddresses().front(),"PQC_PUBKEY_HASH"});
         Check(!walletPubs.empty() && w->SignTransaction(ownedTx).IsOk(), "Wallet unlock allows owned key signing");

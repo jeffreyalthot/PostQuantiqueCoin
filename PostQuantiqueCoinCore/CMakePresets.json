@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": { "major": 3, "minor": 20, "patch": 0 },
+  "configurePresets": [
+    { "name": "debug-dev", "displayName": "Debug dev crypto", "generator": "Unix Makefiles", "binaryDir": "${sourceDir}/build/debug-dev", "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug", "USE_LIBOQS": "OFF", "DEV_ONLY_ALLOW_INSECURE_CRYPTO": "ON", "PQC_BUILD_TESTS": "ON" } },
+    { "name": "release", "displayName": "Release liboqs", "generator": "Unix Makefiles", "binaryDir": "${sourceDir}/build/release", "cacheVariables": { "CMAKE_BUILD_TYPE": "Release", "USE_LIBOQS": "ON", "DEV_ONLY_ALLOW_INSECURE_CRYPTO": "OFF" } },
+    { "name": "asan", "displayName": "ASAN dev crypto", "generator": "Unix Makefiles", "binaryDir": "${sourceDir}/build/asan", "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug", "USE_LIBOQS": "OFF", "DEV_ONLY_ALLOW_INSECURE_CRYPTO": "ON", "PQC_ENABLE_ASAN": "ON" } }
+  ],
+  "buildPresets": [
+    { "name": "debug-dev", "configurePreset": "debug-dev" },
+    { "name": "release", "configurePreset": "release" },
+    { "name": "asan", "configurePreset": "asan" }
+  ],
+  "testPresets": [
+    { "name": "debug-dev", "configurePreset": "debug-dev", "output": { "outputOnFailure": true } }
+  ]
+}
